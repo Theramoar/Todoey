@@ -8,8 +8,8 @@
 
 import Foundation
 
-
-class TodoNote {
+// To conform the Encodable, Decodable the class must be contained ONLY of standard data types => Encodable, Decodable can be replaced with Codable
+class TodoNote: Codable {
     
     var note: String = ""
     var checked: Bool = false

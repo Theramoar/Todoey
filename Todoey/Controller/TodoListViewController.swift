@@ -13,7 +13,9 @@ class TodoListViewController: UITableViewController {
     var itemArray = [TodoNote]()
     
     let defaults = UserDefaults.standard
-    
+    // we can create different plists for different categories of data
+    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
+
 
     @IBOutlet var todoListTableView: UITableView!
     
@@ -21,9 +23,14 @@ class TodoListViewController: UITableViewController {
    
     override func viewDidLoad() {
         super.viewDidLoad()
-        if let items = defaults.array(forKey: "TodoListArray") as? [TodoNote]{ // for notes
-            itemArray = items
-       }
+        print(dataFilePath!) // prints the path to the data plist
+        //filepath
+        
+        loadItems()
+        
+//        if let items = defaults.array(forKey: "TodoListArray") as? [TodoNote]{ // for notes
+//            itemArray = items
+//       }
         
     }
     
@@ -55,7 +62,7 @@ class TodoListViewController: UITableViewController {
         
         itemArray[indexPath.row].checked = !itemArray[indexPath.row].checked
         
-        tableView.reloadData()
+        saveItems()
         
         //removes the grey "select" background
         tableView.deselectRow(at: indexPath, animated: true)
@@ -75,14 +82,8 @@ class TodoListViewController: UITableViewController {
             let newTodoNote = TodoNote()
             newTodoNote.note = temporaryAddTextField.text!
             self.itemArray.append(newTodoNote)
-            // TODO - http://duc.ninja/2017/11/07/save-custom-object-into-userdefaults.html
-
-            //adds the new array to the user defaults.
-                self.defaults.set(self.itemArray, forKey: "TodoListArray")
-            
-            self.tableView.reloadData()
-            
-            
+           
+            self.saveItems()
         }
         
         alert.addTextField { (alerttexField) in
@@ -96,7 +97,27 @@ class TodoListViewController: UITableViewController {
         
     }
     
+    func saveItems() {
+        let encoder = PropertyListEncoder()
+        do{
+            let data = try encoder.encode(itemArray)
+            try data.write(to: dataFilePath!)
+        } catch{
+            print("Error encoding data array \(error)")
+        }
+        self.tableView.reloadData()
+    }
     
+    func loadItems() {
+        if let data = try? Data(contentsOf: dataFilePath!){ // Data() creates a data buffer with the contents from URL
+            let decoder = PropertyListDecoder()
+            do{
+            try itemArray = decoder.decode([TodoNote].self, from: data)
+            }catch{
+               print("Error decoding data array \(error)")
+            }
+        }
+    }
     
     
 }
