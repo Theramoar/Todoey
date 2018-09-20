@@ -7,30 +7,30 @@
 //
 
 import UIKit
+import CoreData
 
 class TodoListViewController: UITableViewController {
     
     var itemArray = [TodoNote]()
+    var selectedCategory: Category? {
+        // didSet wil trigger once the selectedCategory get set with a value
+        didSet{
+            loadItems()
+        }
+    }
     
-    let defaults = UserDefaults.standard
-    // we can create different plists for different categories of data
-    let dataFilePath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.appendingPathComponent("Items.plist")
 
+    //Watch Udemy 251
+    let context = (UIApplication.shared.delegate as! AppDelegate).persistentContainer.viewContext
 
     @IBOutlet var todoListTableView: UITableView!
     
+    @IBOutlet weak var searchBar: UISearchBar!
     
-   
     override func viewDidLoad() {
         super.viewDidLoad()
-        print(dataFilePath!) // prints the path to the data plist
-        //filepath
         
-        loadItems()
-        
-//        if let items = defaults.array(forKey: "TodoListArray") as? [TodoNote]{ // for notes
-//            itemArray = items
-//       }
+        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)) // prints the path to the database
         
     }
     
@@ -60,6 +60,9 @@ class TodoListViewController: UITableViewController {
     //MARK: - TableView Delegate Methods
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         
+//        context.delete(itemArray[indexPath.row])
+//        itemArray.remove(at: indexPath.row)
+        
         itemArray[indexPath.row].checked = !itemArray[indexPath.row].checked
         
         saveItems()
@@ -79,8 +82,10 @@ class TodoListViewController: UITableViewController {
         let action = UIAlertAction(title: "Add", style: .default) { (action1) in
             // What will happen once the user clicks the Add Button on the alert
             
-            let newTodoNote = TodoNote()
+            let newTodoNote = TodoNote(context: self.context)
             newTodoNote.note = temporaryAddTextField.text!
+            newTodoNote.checked = false
+            newTodoNote.parentCategory = self.selectedCategory
             self.itemArray.append(newTodoNote)
            
             self.saveItems()
@@ -98,28 +103,58 @@ class TodoListViewController: UITableViewController {
     }
     
     func saveItems() {
-        let encoder = PropertyListEncoder()
         do{
-            let data = try encoder.encode(itemArray)
-            try data.write(to: dataFilePath!)
+            try context.save()
         } catch{
-            print("Error encoding data array \(error)")
+            print("Error saving context \(error)")
         }
         self.tableView.reloadData()
     }
     
-    func loadItems() {
-        if let data = try? Data(contentsOf: dataFilePath!){ // Data() creates a data buffer with the contents from URL
-            let decoder = PropertyListDecoder()
-            do{
-            try itemArray = decoder.decode([TodoNote].self, from: data)
-            }catch{
-               print("Error decoding data array \(error)")
-            }
+    func loadItems(with request: NSFetchRequest<TodoNote> = TodoNote.fetchRequest(), predicate: NSPredicate? = nil) { //  = TodoNote.fetchRequest() the default value if nothing else is provided; "with" is the external parameter that is used when the method is called for the sake of comfortable reading
+        
+        let categoryPredicate = NSPredicate(format: "parentCategory.name MATCHES %@", selectedCategory!.name!)
+        
+        if let searchPredicate = predicate{
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [categoryPredicate, searchPredicate])
         }
+        else{
+          request.predicate = categoryPredicate
+        }
+        
+        do{
+            itemArray = try context.fetch(request)
+        } catch {
+            print("Error loading context \(error)")
+        }
+        tableView.reloadData()
+    }
+}
+
+//MARK: - Search Bar Methods
+extension TodoListViewController: UISearchBarDelegate {
+
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        
+        let request : NSFetchRequest<TodoNote> = TodoNote.fetchRequest()
+        
+        let predicate = NSPredicate(format: "note CONTAINS[cd] %@", searchBar.text!) //[cd] makes the query insensitive for case and diacritic
+        
+        request.sortDescriptors = [NSSortDescriptor(key: "note", ascending: true)]
+        
+        loadItems(with: request, predicate: predicate)
     }
     
-    
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        if searchBar.text?.count == 0{
+            loadItems()
+            
+            DispatchQueue.main.async {
+                searchBar.resignFirstResponder()
+            }
+            
+        }
+    }
 }
 
 
